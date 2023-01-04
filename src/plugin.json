@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "Neo",
+  "id": "machbase-neo-datasource",
+  "metrics": true,
+  "backend": true,
+  "executable": "gpx_neo",
+  "info": {
+    "description": "Machbase neo",
+    "author": {
+      "name": "Machbase"
+    },
+    "keywords": ["datasource"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": "^9.2.5",
+    "plugins": []
+  }
+}

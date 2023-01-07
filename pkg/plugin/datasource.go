@@ -3,13 +3,15 @@ package plugin
 import (
 	"context"
 	"encoding/json"
-	"math/rand"
+	"fmt"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/machbase/neo-grpc/machrpc"
+	"github.com/pkg/errors"
 )
 
 // Make sure Datasource implements required interfaces. This is important to do
@@ -24,26 +26,58 @@ var (
 )
 
 // NewDatasource creates a new datasource instance.
-func NewDatasource(_ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	return &Datasource{}, nil
+func NewDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+	options := DatasourceOptions{}
+	err := json.Unmarshal(settings.JSONData, &options)
+	if err != nil {
+		errors.Wrap(err, "machbase-neo invalid settings")
+	}
+
+	var client *machrpc.Client
+	var clientError error
+
+	addr := options.Address
+	if len(addr) > 0 {
+		client = machrpc.NewClient()
+		clientError = client.Connect(addr)
+		if clientError != nil {
+			client = nil
+		}
+	}
+	return &Datasource{
+		opts:        options,
+		client:      client,
+		clientError: clientError,
+	}, nil
 }
 
 // Datasource is an example datasource which can respond to data queries, reports
 // its health and has streaming skills.
-type Datasource struct{}
+type Datasource struct {
+	opts        DatasourceOptions
+	client      *machrpc.Client
+	clientError error
+}
+
+type DatasourceOptions struct {
+	Address string `json:"address"`
+}
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
 // created. As soon as datasource settings change detected by SDK old datasource instance will
-// be disposed and a new one will be created using NewSampleDatasource factory function.
-func (d *Datasource) Dispose() {
+// be disposed and a new one will be created using NewDatasource factory function.
+func (ds *Datasource) Dispose() {
 	// Clean up datasource instance resources.
+	if ds.client != nil {
+		ds.client.Disconnect()
+	}
 }
 
 // QueryData handles multiple queries and returns multiple responses.
 // req contains the queries []DataQuery (where each query contains RefID as a unique identifier).
 // The QueryDataResponse contains a map of RefID to the response for each query, and each response
 // contains Frames ([]*Frame).
-func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+func (ds *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	// when logging at a non-Debug level, make sure you don't include sensitive information in the message
 	// (like the *backend.QueryDataRequest)
 	log.DefaultLogger.Debug("QueryData called", "numQueries", len(req.Queries))
@@ -53,7 +87,7 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 
 	// loop over queries and execute them individually.
 	for _, q := range req.Queries {
-		res := d.query(ctx, req.PluginContext, q)
+		res := ds.query(ctx, req.PluginContext, q)
 
 		// save the response in a hashmap
 		// based on with RefID as identifier
@@ -65,7 +99,7 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 
 type queryModel struct{}
 
-func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+func (ds *Datasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var response backend.DataResponse
 
 	// Unmarshal the JSON into our queryModel.
@@ -73,7 +107,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 	err := json.Unmarshal(query.JSON, &qm)
 	if err != nil {
-		return backend.ErrDataResponse(backend.StatusBadRequest, "json unmarshal: " + err.Error())
+		return backend.ErrDataResponse(backend.StatusBadRequest, "json unmarshal: "+err.Error())
 	}
 
 	// create data frame response.
@@ -95,18 +129,36 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 // The main use case for these health checks is the test button on the
 // datasource configuration page which allows users to verify that
 // a datasource is working as expected.
-func (d *Datasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-	// when logging at a non-Debug level, make sure you don't include sensitive information in the message
-	// (like the *backend.QueryDataRequest)
-	log.DefaultLogger.Debug("CheckHealth called")
+func (ds *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+	log.DefaultLogger.Info("CheckHealth called", fmt.Sprintf("%#v", ds.opts.Address))
+
+	if ds.client == nil {
+		if ds.clientError != nil {
+			return &backend.CheckHealthResult{
+				Status:  backend.HealthStatusError,
+				Message: ds.clientError.Error(),
+			}, nil
+		} else {
+			return &backend.CheckHealthResult{
+				Status:  backend.HealthStatusUnknown,
+				Message: "no connection",
+			}, nil
+		}
+	}
+
+	row := ds.client.QueryRowContext(ctx, "SELECT count(*) FROM V$TABLES")
+	if row.Err() != nil {
+		return &backend.CheckHealthResult{
+			Status:  backend.HealthStatusError,
+			Message: row.Err().Error(),
+		}, nil
+	}
+
+	var countTables int
+	row.Scan(&countTables)
 
 	var status = backend.HealthStatusOk
-	var message = "Data source is working"
-
-	if rand.Int()%2 == 0 {
-		status = backend.HealthStatusError
-		message = "randomized error"
-	}
+	var message = fmt.Sprintf("Machbase-neo Data source '%s' is working (%d tables)", req.PluginContext.DataSourceInstanceSettings.Name, countTables)
 
 	return &backend.CheckHealthResult{
 		Status:  status,

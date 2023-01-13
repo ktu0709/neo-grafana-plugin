@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/grafana/grafana-plugin-sdk-go v0.143.0
-	github.com/machbase/neo-grpc v0.0.0-20230107011734-f9f1e1dbf801
+	github.com/machbase/neo-grpc v0.0.4-0.20230113051455-8e58b23c3403
 	github.com/pkg/errors v0.9.1
 )
 

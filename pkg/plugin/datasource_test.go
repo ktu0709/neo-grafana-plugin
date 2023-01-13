@@ -10,7 +10,7 @@ import (
 
 func TestQueryData(t *testing.T) {
 	dsOpt := DatasourceOptions{
-		Address: "",
+		Address: "tcp://127.0.0.1:5655",
 	}
 	dsOptJson, err := json.Marshal(dsOpt)
 	if err != nil {
@@ -25,7 +25,7 @@ func TestQueryData(t *testing.T) {
 	ds := dsInst.(*Datasource)
 
 	qm := queryModel{
-		SqlText: "select * from log",
+		SqlText: "select time, name, value from sample",
 	}
 
 	js, err := json.Marshal(qm)
@@ -51,4 +51,5 @@ func TestQueryData(t *testing.T) {
 	if len(resp.Responses) != 1 {
 		t.Fatal("QueryData must return a response")
 	}
+	t.Logf("response.0 len=%d", resp.Responses["A"].Frames[0].Fields[0].Len())
 }

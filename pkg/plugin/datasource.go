@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -70,6 +71,7 @@ func (ds *Datasource) Dispose() {
 	// Clean up datasource instance resources.
 	if ds.client != nil {
 		ds.client.Disconnect()
+		ds.client = nil
 	}
 }
 
@@ -97,7 +99,10 @@ func (ds *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReque
 	return response, nil
 }
 
-type queryModel struct{}
+type queryModel struct {
+	SqlText string `json:"q"`
+	Params  []any  `json:"params"`
+}
 
 func (ds *Datasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var response backend.DataResponse
@@ -110,15 +115,78 @@ func (ds *Datasource) query(_ context.Context, pCtx backend.PluginContext, query
 		return backend.ErrDataResponse(backend.StatusBadRequest, "json unmarshal: "+err.Error())
 	}
 
+	rows, err := ds.client.Query(qm.SqlText, qm.Params...)
+	if err != nil {
+		return backend.ErrDataResponse(backend.StatusBadRequest, err.Error())
+	}
+	defer rows.Close()
+
+	// fields
+	cols, err := rows.Columns()
+	if err != nil {
+		return backend.ErrDataResponse(backend.StatusInternal, err.Error())
+	}
+
+	makeBuff := func() ([]any, error) {
+		rec := make([]any, len(cols))
+		for i, c := range cols {
+			switch c.Type {
+			case "int16":
+				rec[i] = new(int16)
+			case "int32":
+				rec[i] = new(int32)
+			case "int64":
+				rec[i] = new(int64)
+			case "datetime":
+				rec[i] = new(time.Time)
+			case "float":
+				rec[i] = new(float32)
+			case "double":
+				rec[i] = new(float64)
+			case "ipv4":
+				rec[i] = new(net.IP)
+			case "ipv6":
+				rec[i] = new(net.IP)
+			case "string":
+				rec[i] = new(string)
+			case "binary":
+				rec[i] = new([]byte)
+			default:
+				return nil, fmt.Errorf("unknown column type:%s", c.Type)
+			}
+		}
+		return rec, nil
+	}
+
+	series := make([][]any, len(cols))
+	nrow := 0
+	for rows.Next() {
+		rec, err := makeBuff()
+		if err != nil {
+			return backend.ErrDataResponse(backend.StatusInternal, err.Error())
+		}
+		if err = rows.Scan(rec...); err != nil {
+			return backend.ErrDataResponse(backend.StatusInternal, err.Error())
+		}
+
+		for i := range cols {
+			series[i] = append(series[i], rec[i])
+		}
+
+		nrow++
+	}
+
+	fields := make([]*data.Field, len(cols))
+
+	for i, c := range cols {
+		fields[i] = data.NewField(c.Name, nil, series[i])
+		// data.NewField(c.Name, nil, []time.Time{query.TimeRange.From, query.TimeRange.To})
+		// data.NewField("time", nil, []time.Time{query.TimeRange.From, query.TimeRange.To}),
+		// data.NewField("values", nil, []int64{10, 20}),
+	}
+
 	// create data frame response.
-	frame := data.NewFrame("response")
-
-	// add fields.
-	frame.Fields = append(frame.Fields,
-		data.NewField("time", nil, []time.Time{query.TimeRange.From, query.TimeRange.To}),
-		data.NewField("values", nil, []int64{10, 20}),
-	)
-
+	frame := data.NewFrame("response", fields...)
 	// add the frames to the response.
 	response.Frames = append(response.Frames, frame)
 

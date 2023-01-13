@@ -2,19 +2,45 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
 func TestQueryData(t *testing.T) {
-	ds := Datasource{}
+	dsOpt := DatasourceOptions{
+		Address: "",
+	}
+	dsOptJson, err := json.Marshal(dsOpt)
+	if err != nil {
+		panic(err)
+	}
+
+	dsInst, err := NewDatasource(backend.DataSourceInstanceSettings{JSONData: dsOptJson})
+	if err != nil {
+		panic(err)
+	}
+
+	ds := dsInst.(*Datasource)
+
+	qm := queryModel{
+		SqlText: "select * from log",
+	}
+
+	js, err := json.Marshal(qm)
+	if err != nil {
+		panic(err)
+	}
 
 	resp, err := ds.QueryData(
 		context.Background(),
 		&backend.QueryDataRequest{
 			Queries: []backend.DataQuery{
-				{RefID: "A"},
+				{
+					RefID: "A",
+					JSON:  js,
+				},
 			},
 		},
 	)

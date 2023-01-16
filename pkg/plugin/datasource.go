@@ -99,7 +99,7 @@ func (ds *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReque
 	return response, nil
 }
 
-type queryModel struct {
+type QueryModel struct {
 	SqlText string `json:"q"`
 	Params  []any  `json:"params"`
 }
@@ -108,7 +108,7 @@ func (ds *Datasource) query(_ context.Context, pCtx backend.PluginContext, query
 	var response backend.DataResponse
 
 	// Unmarshal the JSON into our queryModel.
-	var qm queryModel
+	var qm QueryModel
 
 	err := json.Unmarshal(query.JSON, &qm)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -32,6 +33,8 @@ func NewClient(options ...ClientOption) *Client {
 			client.queryTimeout = o.timeout
 		case *closeTimeoutOption:
 			client.closeTimeout = o.timeout
+		case *appendTimeoutOption:
+			client.appendTimeout = o.timeout
 		}
 	}
 	return client
@@ -50,6 +53,168 @@ func (client *Client) Connect(serverAddr string) error {
 func (client *Client) Disconnect() {
 	client.conn = nil
 	client.cli = nil
+}
+
+func (client *Client) GetServerInfo() (*ServerInfo, error) {
+	ctx, cancelFunc := client.queryContext()
+	defer cancelFunc()
+	req := &ServerInfoRequest{}
+	rsp, err := client.cli.GetServerInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if !rsp.Success {
+		return nil, errors.New(rsp.Reason)
+	}
+	return rsp, nil
+}
+
+func (client *Client) Explain(sqlText string) (string, error) {
+	ctx, cancelFunc := client.queryContext()
+	defer cancelFunc()
+	req := &ExplainRequest{Sql: sqlText}
+	rsp, err := client.cli.Explain(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	if !rsp.Success {
+		return "", fmt.Errorf(rsp.Reason)
+	}
+	return rsp.Plan, nil
+}
+
+type Description interface {
+	description()
+}
+
+func (td *TableDescription) description()  {}
+func (cd *ColumnDescription) description() {}
+
+type TableDescription struct {
+	Name    string               `json:"name"`
+	Type    TableType            `json:"type"`
+	Flag    int                  `json:"flag"`
+	Id      int                  `json:"id"`
+	Columns []*ColumnDescription `json:"columns"`
+}
+
+func (td *TableDescription) TypeString() string {
+	return TableTypeDescription(td.Type, td.Flag)
+}
+
+func TableTypeDescription(typ TableType, flag int) string {
+	desc := "undef"
+	switch typ {
+	case LogTableType:
+		desc = "Log Table"
+	case FixedTableType:
+		desc = "Fixed Table"
+	case VolatileTableType:
+		desc = "Volatile Table"
+	case LookupTableType:
+		desc = "Lookup Table"
+	case KeyValueTableType:
+		desc = "KeyValue Table"
+	case TagTableType:
+		desc = "Tag Table"
+	}
+	switch flag {
+	case 1:
+		desc += " (data)"
+	case 2:
+		desc += " (rollup)"
+	case 4:
+		desc += " (meta)"
+	case 8:
+		desc += " (stat)"
+	}
+	return desc
+}
+
+type ColumnDescription struct {
+	Id     uint64     `json:"id"`
+	Name   string     `json:"name"`
+	Type   ColumnType `json:"type"`
+	Length int        `json:"length"`
+}
+
+func (cd *ColumnDescription) TypeString() string {
+	return ColumnTypeDescription(cd.Type)
+}
+
+func ColumnTypeDescription(typ ColumnType) string {
+	switch typ {
+	case Int16ColumnType:
+		return "int16"
+	case Uint16ColumnType:
+		return "uint16"
+	case Int32ColumnType:
+		return "int32"
+	case Uint32ColumnType:
+		return "uint32"
+	case Int64ColumnType:
+		return "int64"
+	case Uint64ColumnType:
+		return "uint64"
+	case Float32ColumnType:
+		return "float"
+	case Float64ColumnType:
+		return "double"
+	case VarcharColumnType:
+		return "varchar"
+	case TextColumnType:
+		return "text"
+	case ClobColumnType:
+		return "clob"
+	case BlobColumnType:
+		return "blob"
+	case BinaryColumnType:
+		return "binary"
+	case DatetimeColumnType:
+		return "datetime"
+	case IpV4ColumnType:
+		return "ipv4"
+	case IpV6ColumnType:
+		return "ipv6"
+	default:
+		return "undef"
+	}
+}
+
+func (client *Client) Describe(name string) (Description, error) {
+	d := &TableDescription{}
+	var tableType int
+	var colCount int
+	var colType int
+	r := client.QueryRow("select name, type, flag, id, colcount from M$SYS_TABLES where name = ?", strings.ToUpper(name))
+	if err := r.Scan(&d.Name, &tableType, &d.Flag, &d.Id, &colCount); err != nil {
+		return nil, err
+	}
+	d.Type = TableType(tableType)
+
+	rows, err := client.Query(`
+		select
+			name, type, length, id
+		from
+			M$SYS_COLUMNS
+		where
+			table_id = ? 
+		order by id`, d.Id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		col := &ColumnDescription{}
+		err = rows.Scan(&col.Name, &colType, &col.Length, &col.Id)
+		if err != nil {
+			return nil, err
+		}
+		col.Type = ColumnType(colType)
+		d.Columns = append(d.Columns, col)
+	}
+	return d, nil
 }
 
 func (client *Client) queryContext() (context.Context, context.CancelFunc) {
@@ -105,7 +270,7 @@ func (client *Client) QueryContext(ctx context.Context, sqlText string, params .
 	}
 
 	if rsp.Success {
-		return &Rows{client: client, handle: rsp.RowsHandle}, nil
+		return &Rows{client: client, message: rsp.Reason, handle: rsp.RowsHandle}, nil
 	} else {
 		if len(rsp.Reason) > 0 {
 			return nil, errors.New(rsp.Reason)
@@ -115,10 +280,11 @@ func (client *Client) QueryContext(ctx context.Context, sqlText string, params .
 }
 
 type Rows struct {
-	client *Client
-	handle *RowsHandle
-	values []any
-	err    error
+	client  *Client
+	message string
+	handle  *RowsHandle
+	values  []any
+	err     error
 }
 
 func (rows *Rows) Close() error {
@@ -132,6 +298,14 @@ func (rows *Rows) Close() error {
 	}
 	_, err := rows.client.cli.RowsClose(ctx, rows.handle)
 	return err
+}
+
+func (rows *Rows) IsFetchable() bool {
+	return rows.handle != nil
+}
+
+func (rows *Rows) Message() string {
+	return rows.message
 }
 
 func (rows *Rows) Columns() ([]*Column, error) {
@@ -208,6 +382,7 @@ func (client *Client) QueryRowContext(ctx context.Context, sqlText string, param
 
 	var row = &Row{}
 	row.success = rsp.Success
+	row.affectedRows = rsp.AffectedRows
 	row.err = nil
 	if !rsp.Success && len(rsp.Reason) > 0 {
 		row.err = errors.New(rsp.Reason)
@@ -220,6 +395,8 @@ type Row struct {
 	success bool
 	err     error
 	values  []any
+
+	affectedRows int64
 }
 
 func (row *Row) Err() error {
@@ -235,6 +412,10 @@ func (row *Row) Scan(cols ...any) error {
 	}
 	err := scan(row.values, cols)
 	return err
+}
+
+func (row *Row) RowsAffected() int64 {
+	return row.affectedRows
 }
 
 func scan(src []any, dst []any) error {
@@ -309,6 +490,10 @@ func (client *Client) Appender(tableName string) (*Appender, error) {
 	openRsp, err := client.cli.Appender(ctx0, &AppenderRequest{TableName: tableName})
 	if err != nil {
 		return nil, errors.Wrap(err, "Appender")
+	}
+
+	if !openRsp.Success {
+		return nil, errors.New(openRsp.Reason)
 	}
 
 	appendClient, err := client.cli.Append(context.Background())

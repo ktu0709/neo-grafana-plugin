@@ -95,7 +95,7 @@ func (ds *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReque
 		// based on with RefID as identifier
 		response.Responses[q.RefID] = res
 	}
-
+	log.DefaultLogger.Debug("QueryData result", "response", len(response.Responses))
 	return response, nil
 }
 

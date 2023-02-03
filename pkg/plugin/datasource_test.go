@@ -55,7 +55,3 @@ func TestQueryData(t *testing.T) {
 	}
 	t.Logf("response.0 len=%d", resp.Responses["A"].Frames[0].Fields[0].Len())
 }
-
-func TestMain(m *testing.M) {
-	m.Run()
-}

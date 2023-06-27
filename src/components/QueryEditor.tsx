@@ -14,22 +14,15 @@ import {
     NeoDataSourceOptions,
     NeoQuery,
     Filter,
-    ColumnType,
     TagAggrOpsNameList,
     LogAggrOpsNameList,
     StringAggrOpsNameList,
     conditionList,
 } from '../types';
-
-// const { FormField } = LegacyForms;
+import { isNumberType, isTagTable } from '../utils/common';
 
 type Props = QueryEditorProps<DataSource, NeoQuery, NeoDataSourceOptions>;
-/*
-interface State {
-  tables: Array<SelectableValue<string>>;
-  columns: Array<SelectableValue<string>>;
-}
-*/
+
 export const QueryEditor: React.FC<Props> = (props) => {
     const { onChange, onRunQuery, query, datasource } = props;
     const {
@@ -44,7 +37,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
 
     const [isAggr, setIsAggr] = useState<boolean>(valueType === 'select' ? false : true);
     const [isRollup, setIsRollup] = useState<boolean>(true);
-    const [showRollup, setShowRollup] = useState<boolean>(true);
+    const [showRollup, setShowRollup] = useState<boolean>(true);  // show rollup checkbox ui
     const [columnType, setColumnType] = useState<number>(0);
     const [tableNameList, setTableNameList] = useState([]);
     const [columnNameList, setColumnNameList] = useState([]);
@@ -129,7 +122,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
             });
             setTableNameList(transData);
         }
-        // 설정된 테이블 세팅이 존재한다면 그 테이블로 다시 세팅
+        // Set table settings back to them if they exist
         if (query.tableName !== '') {
             onTableNameChange(transData.find((v: any) => v.value === query.tableName))
         }
@@ -166,7 +159,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 }
             });
             
-            // value init
+            // query value init
             const numberColumn = sameTable && query.valueField ? transData.find((v: any) => v.value === query.valueField) : transData.find((v: any) => isNumberType(v.type));
             transData.unshift({
                 label: 'none',
@@ -191,7 +184,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
             if (!(query.filters && (query.filters[0].value !== '' || query.filters[0].condition !== ''))) {
                 if (isTagTable(type)) {
                     const tempList = filterList;
-                    // varchar type의 컬럼으로 초기화
+                    // init to columns of varchar type
                     const isVarcharType = transData.filter((v: any) => v.type === 5).length > 0;
                     if (isVarcharType) {
                         tempList[0].key = transData.filter((v: any) => v.type === 5)[0].value
@@ -200,26 +193,6 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 }
             }
         }
-    }
-
-    const isNumberType = (type: number) => {
-        const colType = ColumnType.find(item => item.key === type);
-        const Numbers = ['SHORT', 'INTEGER', 'LONG', 'FLOAT', 'DOUBLE', 'USHORT', 'UINTEGER', 'ULONG'];
-        if (colType && Numbers.some((item) => item === colType.value)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    const isTagTable = (type: number) => {
-        // 0 이면 로그 테이블 6 이면 태그 테이블
-        if (type === 6) {
-            return true;
-        } else if (type === 0) {
-            return false;
-        }
-        return false;
     }
 
     const toggleIsAggr = (aggr: boolean) => {
@@ -231,6 +204,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
         setIsAggr(aggr)
     }
 
+    // function is create AND query ui
     const createFilterSection = () => {
         const addFilter = () => {
             setFilterList((prev) => [...prev, {

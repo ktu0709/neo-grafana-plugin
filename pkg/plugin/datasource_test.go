@@ -27,7 +27,7 @@ func TestQueryData(t *testing.T) {
 	ds := dsInst.(*Datasource)
 
 	qm := QueryModel{
-		SqlText: "select time, name, value from example",
+		SqlText: "select now, * from m$sys_users",
 	}
 
 	js, err := json.Marshal(qm)
@@ -53,5 +53,5 @@ func TestQueryData(t *testing.T) {
 	if len(resp.Responses) != 1 {
 		t.Fatal("QueryData must return a response")
 	}
-	t.Logf("response.0 len=%d", resp.Responses["A"].Frames[0].Fields[0].Len())
+	// t.Logf("response.0 len=%d", resp.Responses["A"].Frames[0].Fields[0].Len())
 }

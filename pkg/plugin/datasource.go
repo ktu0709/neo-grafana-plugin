@@ -100,7 +100,7 @@ func (ds *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReque
 }
 
 type QueryModel struct {
-	SqlText string `json:"q"`
+	SqlText string `json:"queryText"`
 	Params  []any  `json:"params"`
 }
 
@@ -179,62 +179,67 @@ func (ds *Datasource) query(_ context.Context, pCtx backend.PluginContext, query
 	fields := make([]*data.Field, len(cols))
 
 	for i, c := range cols {
-		switch series[i][0].(type) {
-		case *int16:
-			values := make([]*int16, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*int16)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
-		case *int32:
-			values := make([]*int32, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*int32)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
-		case *int64:
-			values := make([]*int64, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*int64)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
-		case *time.Time:
-			values := make([]*time.Time, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*time.Time)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
-		case *float32:
-			values := make([]*float32, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*float32)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
-		case *float64:
-			values := make([]*float64, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*float64)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
-		case *string:
-			values := make([]*string, len(series[i]))
-			for n, v := range series[i] {
-				values[n] = v.(*string)
-			}
-			fields[i] = data.NewField(c.Name, nil, values)
+		if len(series[i]) > 0 {
+			switch series[i][0].(type) {
+			case *int16:
+				values := make([]*int16, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*int16)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
+			case *int32:
+				values := make([]*int32, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*int32)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
+			case *int64:
+				values := make([]*int64, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*int64)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
+			case *time.Time:
+				values := make([]*time.Time, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*time.Time)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
+			case *float32:
+				values := make([]*float32, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*float32)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
+			case *float64:
+				values := make([]*float64, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*float64)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
+			case *string:
+				values := make([]*string, len(series[i]))
+				for n, v := range series[i] {
+					values[n] = v.(*string)
+				}
+				fields[i] = data.NewField(c.Name, nil, values)
 
-		default:
-			fmt.Printf("====>> %s %T %T %d\n", c.Name, series[i], series[i][0], len(series[i]))
-			// var values any
-			// switch series[i][0].(type) {
-			// case *time.Time:
-			// 	arr := make([]*time.Time, len(series[i]))
-			// 	copy(arr, series[i])
-			// }
-			fields[i] = data.NewField(c.Name, nil, series[i])
-			// data.NewField(c.Name, nil, []time.Time{query.TimeRange.From, query.TimeRange.To})
-			// data.NewField("time", nil, []time.Time{query.TimeRange.From, query.TimeRange.To}),
-			// data.NewField("values", nil, []int64{10, 20}),
+			default:
+				fmt.Printf("====>> %s %T %T %d\n", c.Name, series[i], series[i][0], len(series[i]))
+				// var values any
+				// switch series[i][0].(type) {
+				// case *time.Time:
+				// 	arr := make([]*time.Time, len(series[i]))
+				// 	copy(arr, series[i])
+				// }
+				fields[i] = data.NewField(c.Name, nil, series[i])
+				// data.NewField(c.Name, nil, []time.Time{query.TimeRange.From, query.TimeRange.To})
+				// data.NewField("time", nil, []time.Time{query.TimeRange.From, query.TimeRange.To}),
+				// data.NewField("values", nil, []int64{10, 20}),
+			}
+		} else {
+				values := make([]*float64, len(series[i]))
+				fields[i] = data.NewField(c.Name, nil, values)
 		}
 	}
 

@@ -27,7 +27,7 @@ func TestQueryData(t *testing.T) {
 	ds := dsInst.(*Datasource)
 
 	qm := QueryModel{
-		SqlText: "select time, name, value from example",
+		SqlText: "select now, * from m$sys_users",
 	}
 
 	js, err := json.Marshal(qm)

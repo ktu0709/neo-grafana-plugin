@@ -56,7 +56,7 @@ export class DataSource extends DataSourceWithBackend<NeoQuery, NeoDataSourceOpt
     const result = this.runQuery(target).pipe(
       map((res) => {
         if (res.data.length) {
-          const tables:any = new DataFrameView<SelectableValue<string>>(res.data[0]);
+          const tables: any = new DataFrameView<SelectableValue<string>>(res.data[0]);
           // console.log('getTables query res ', tables)
           return tables.data.fields;
         }
@@ -80,7 +80,7 @@ export class DataSource extends DataSourceWithBackend<NeoQuery, NeoDataSourceOpt
     const result = this.runQuery(target).pipe(
       map((res) => {
         if (res.data.length) {
-          const columns:any = new DataFrameView<SelectableValue<string>>(res.data[0]);
+          const columns: any = new DataFrameView<SelectableValue<string>>(res.data[0]);
           // console.log('getColumns query res ', columns)
           return columns.data.fields;
         }

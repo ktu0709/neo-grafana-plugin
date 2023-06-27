@@ -107,8 +107,12 @@ export const createQuery = (request: DataQueryRequest<NeoQuery>, targets: NeoQue
         // create filter (and query)
         if (target.filters) {
             target.filters.map((v) => {
-                if (!v.isStr && (v.key === 'none' || v.value === '')) return;
-                if (v.isStr && v.condition === '') return;
+                if (!v.isStr && (v.key === 'none' || v.value === '')) {
+                    return;
+                }
+                if (v.isStr && v.condition === '') {
+                    return;
+                }
                 if (!v.isStr) {
                     let queryStr = '';
                     if (v.op === 'in') {
@@ -120,11 +124,11 @@ export const createQuery = (request: DataQueryRequest<NeoQuery>, targets: NeoQue
                         queryStr = ' AND ' + v.key + ' ' + v.op + ' ' + v.value;
                     } else {
                         queryStr = ' AND ' + v.key + v.op;
-                    if (!isNumberType(parseInt(v.type)) && !v.value.startsWith('\'')) {
-                        queryStr += '\''+v.value+'\'';
-                    } else {
-                        queryStr += v.value;
-                    }
+                        if (!isNumberType(parseInt(v.type, 10)) && !v.value.startsWith('\'')) {
+                            queryStr += '\''+v.value+'\'';
+                        } else {
+                            queryStr += v.value;
+                        }
                     }
                     andQueryList.push(queryStr+' ');
                 } else {
@@ -161,8 +165,9 @@ export const createQuery = (request: DataQueryRequest<NeoQuery>, targets: NeoQue
             if (target.tableType === 6 && target.aggrFunc !== 'none' && target.filters && target.filters.length > 0 && (target.filters[0].value !== '' && target.filters[0].key !== 'none') && !target.filters[0].isStr) {
                 customTitle = '\"' + target.filters[0].value + '(' + target.aggrFunc + ')\"';
             }
-            if (target.title !== '') customTitle = '\'' + target.title + '\'';
-
+            if (target.title !== '') {
+                customTitle = '\'' + target.title + '\'';
+            }
             if (isRollup && subQueryFlag) {
                 const nanoSec = request.intervalMs * 1000 * 1000;
                 if (target.aggrFunc === 'sum' || target.aggrFunc === 'sumsq' || target.aggrFunc === 'count') {

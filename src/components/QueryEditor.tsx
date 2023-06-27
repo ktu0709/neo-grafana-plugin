@@ -47,10 +47,12 @@ export const QueryEditor: React.FC<Props> = (props) => {
 
     useEffect(() => {
         getTables();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
         onChange({ ...query, filters: filterList })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filterList])
 
     const onInitTable = (reFresh?: boolean) => {
@@ -131,7 +133,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
         const newQuery = { ...query, tableName: tableName }
         const sameTable: boolean = tableName === query.tableName;
         const result = await datasource.getColumnsQuery(newQuery, type);
-        let transData:any = [];
+        let transData: any = [];
         if (result.length > 0) {
             result.forEach((item: any) => {
                 if (item.name === 'name') {
@@ -267,7 +269,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
         }
 
         return filterList.map((v, index) => (
-            <div className="gf-form" style={{ display: 'flex', alignItems: 'center' }}>
+            <div key={v.key+index} className="gf-form" style={{ display: 'flex', alignItems: 'center' }}>
                 <InlineLabel width={12}>
                     <span>{ index === 0 ? 'Filter' : 'AND' }</span>
                     {index === 0 ? <IconButton className='plus' name={'plus'} onClick={addFilter} /> : null}

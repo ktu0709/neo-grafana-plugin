@@ -106,20 +106,43 @@ export const QueryEditor: React.FC<Props> = (props) => {
         if (result.length > 0) {
             result.forEach((item: any) => {
                 if (item.name === 'name') {
-                    item.values.buffer.forEach((name: string, index: number) => {
-                        if (!transData[index]) {
-                            transData[index] = {};
-                        }
-                        transData[index].label = name;
-                        transData[index].value = name;
-                    });
+                    // grafana 9.x
+                    if (item.values.hasOwnProperty('buffer')) {
+                        item.values.buffer.forEach((name: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].label = name;
+                            transData[index].value = name;
+                        });
+                    } else {
+                        // grafana 10.x
+                        item.values.forEach((name: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].label = name;
+                            transData[index].value = name;
+                        });
+                    }
                 } else if (item.name === 'type') {
-                    item.values.buffer.forEach((type: string, index: number) => {
-                        if (!transData[index]) {
-                            transData[index] = {};
-                        }
-                        transData[index].type = type;
-                    });
+                    // grafana 9.x
+                    if (item.values.hasOwnProperty('buffer')) {
+                        item.values.buffer.forEach((type: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].type = type;
+                        });
+                    } else {
+                        // grafana 10.x
+                        item.values.forEach((type: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].type = type;
+                        });
+                    }
                 }
             });
             setTableNameList(transData);
@@ -137,27 +160,55 @@ export const QueryEditor: React.FC<Props> = (props) => {
         if (result.length > 0) {
             result.forEach((item: any) => {
                 if (item.name === 'name') {
-                    item.values.buffer.forEach((name: string, index: number) => {
-                        if (!transData[index]) {
-                            transData[index] = {};
-                        }
-                        transData[index].label = name;
-                        transData[index].value = name;
-                    });
+                    if (item.values.hasOwnProperty('buffer')) {
+                        item.values.buffer.forEach((name: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].label = name;
+                            transData[index].value = name;
+                        });
+                    } else {
+                        item.values.forEach((name: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].label = name;
+                            transData[index].value = name;
+                        });
+                    }
                 } else if (item.name === 'type') {
-                    item.values.buffer.forEach((type: string, index: number) => {
-                        if (!transData[index]) {
-                            transData[index] = {};
-                        }
-                        transData[index].type = type;
-                    });
+                    if (item.values.hasOwnProperty('buffer')) {
+                        item.values.buffer.forEach((type: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].type = type;
+                        });
+                    } else {
+                        item.values.forEach((type: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].type = type;
+                        });
+                    }
                 } else if (item.name === 'length') {
-                    item.values.buffer.forEach((length: string, index: number) => {
-                        if (!transData[index]) {
-                            transData[index] = {};
-                        }
-                        transData[index].leng = length;
-                    });
+                    if (item.values.hasOwnProperty('buffer')) {
+                        item.values.buffer.forEach((length: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].leng = length;
+                        });
+                    } else {
+                        item.values.forEach((length: string, index: number) => {
+                            if (!transData[index]) {
+                                transData[index] = {};
+                            }
+                            transData[index].leng = length;
+                        });
+                    }
                 }
             });
             

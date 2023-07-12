@@ -48,18 +48,20 @@ func NewDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.In
 	var clientError error
 
 	if len(options.Address) > 0 {
-		if strings.Contains(options.Address, "http") {
-			client = &http.Client{}
-			clientError = ping(client.(*http.Client), options.Address)
-			if clientError != nil {
-				client = nil
-			}
-		} else {
-			client = machrpc.NewClient()
-			clientError = client.(*machrpc.Client).Connect(options.Address)
-			if clientError != nil {
-				client = nil
-			}
+		errors.Wrap(errors.New("address invalid settings"), "machbase-neo invalid settings")
+	}
+
+	if strings.Contains(options.Address, "http") {
+		client = &http.Client{}
+		clientError = ping(client.(*http.Client), options.Address)
+		if clientError != nil {
+			client = nil
+		}
+	} else {
+		client = machrpc.NewClient()
+		clientError = client.(*machrpc.Client).Connect(options.Address)
+		if clientError != nil {
+			client = nil
 		}
 	}
 

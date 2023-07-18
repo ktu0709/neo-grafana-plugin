@@ -6,6 +6,7 @@ require (
 	github.com/grafana/grafana-plugin-sdk-go v0.143.0
 	github.com/machbase/neo-grpc v0.0.8-0.20230128225921-fadf1377b1b8
 	github.com/pkg/errors v0.9.1
+	github.com/tidwall/gjson v1.14.4
 )
 
 require (
@@ -59,6 +60,8 @@ require (
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/unknwon/bra v0.0.0-20200517080246-1e3013ecaff8 // indirect
 	github.com/unknwon/com v1.0.1 // indirect
 	github.com/unknwon/log v0.0.0-20150304194804-e617c87089d3 // indirect

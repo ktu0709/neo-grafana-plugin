@@ -217,6 +217,15 @@ github.com/russross/blackfriday/v2
 github.com/shurcooL/sanitized_anchor_name
 # github.com/stretchr/testify v1.8.1
 ## explicit; go 1.13
+# github.com/tidwall/gjson v1.14.4
+## explicit; go 1.12
+github.com/tidwall/gjson
+# github.com/tidwall/match v1.1.1
+## explicit; go 1.15
+github.com/tidwall/match
+# github.com/tidwall/pretty v1.2.0
+## explicit; go 1.16
+github.com/tidwall/pretty
 # github.com/unknwon/bra v0.0.0-20200517080246-1e3013ecaff8
 ## explicit; go 1.13
 github.com/unknwon/bra/cmd

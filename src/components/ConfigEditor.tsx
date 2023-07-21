@@ -1,9 +1,9 @@
 import React, { ChangeEvent, PureComponent } from 'react';
 import { LegacyForms } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
-import { NeoDataSourceOptions, NeoSecureJsonData } from '../types';
+import { NeoDataSourceOptions } from '../types';
 
-const { SecretFormField, FormField } = LegacyForms;
+const { FormField } = LegacyForms;
 
 interface Props extends DataSourcePluginOptionsEditorProps<NeoDataSourceOptions> { }
 
@@ -28,43 +28,72 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
-  // Secure field (only sent to the backend)
-  onAPIKeyChange = (event: ChangeEvent<HTMLInputElement>) => {
+  onClientCertPathChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
-    onOptionsChange({
-      ...options,
-      secureJsonData: {
-        apiKey: event.target.value,
-      },
-    });
+    const jsonData = {
+      ...options.jsonData,
+      clientCertPath: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
   };
 
-  onResetAPIKey = () => {
+  onClientKeyPathChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
-    onOptionsChange({
-      ...options,
-      secureJsonFields: {
-        ...options.secureJsonFields,
-        apiKey: false,
-      },
-      secureJsonData: {
-        ...options.secureJsonData,
-        apiKey: '',
-      },
-    });
+    const jsonData = {
+      ...options.jsonData,
+      clientKeyPath: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
   };
+
+  onServerCertPathChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { onOptionsChange, options } = this.props;
+    const jsonData = {
+      ...options.jsonData,
+      serverCertPath: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
+  };
+
+  // Secure field (only sent to the backend)
+  // onAPIKeyChange = (event: ChangeEvent<HTMLInputElement>) => {
+  //   const { onOptionsChange, options } = this.props;
+  //   onOptionsChange({
+  //     ...options,
+  //     secureJsonData: {
+  //       apiKey: event.target.value,
+  //     },
+  //   });
+  // };
+
+  // onResetAPIKey = () => {
+  //   const { onOptionsChange, options } = this.props;
+  //   onOptionsChange({
+  //     ...options,
+  //     secureJsonFields: {
+  //       ...options.secureJsonFields,
+  //       apiKey: false,
+  //     },
+  //     secureJsonData: {
+  //       ...options.secureJsonData,
+  //       apiKey: '',
+  //     },
+  //   });
+  // };
+
+  
 
   render() {
     const { options } = this.props;
     const { jsonData, secureJsonFields } = options;
-    const secureJsonData = (options.secureJsonData || {}) as NeoSecureJsonData;
+    // const secureJsonData = (options.secureJsonData || {}) as NeoSecureJsonData;
 
     return (
       <div className="gf-form-group">
         <div className="gf-form">
           <FormField
             label="Address"
-            labelWidth={6}
+            labelWidth={8}
             inputWidth={20}
             onChange={this.onAddressChange}
             value={jsonData.address || ''}
@@ -74,16 +103,38 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
         <div className="gf-form">
           <FormField
-            label="Path"
-            labelWidth={6}
+            label="Client Cert Path"
+            labelWidth={8}
             inputWidth={20}
-            onChange={this.onPathChange}
-            value={jsonData.path || ''}
-            placeholder="json field returned to frontend"
+            onChange={this.onClientCertPathChange}
+            value={jsonData.clientCertPath || ''}
+            placeholder="client certification path to frontend"
           />
         </div>
 
-        <div className="gf-form-inline">
+        <div className="gf-form">
+          <FormField
+            label="Client Key Path"
+            labelWidth={8}
+            inputWidth={20}
+            onChange={this.onClientKeyPathChange}
+            value={jsonData.clientKeyPath || ''}
+            placeholder="client key path to frontend"
+          />
+        </div>
+
+        <div className="gf-form">
+          <FormField
+            label="Server Cert Path"
+            labelWidth={8}
+            inputWidth={20}
+            onChange={this.onServerCertPathChange}
+            value={jsonData.serverCertPath || ''}
+            placeholder="server certification path to frontend"
+          />
+        </div>
+
+        {/* <div className="gf-form-inline">
           <div className="gf-form">
             <SecretFormField
               isConfigured={(secureJsonFields && secureJsonFields.apiKey) as boolean}
@@ -96,7 +147,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
               onChange={this.onAPIKeyChange}
             />
           </div>
-        </div>
+        </div> */}
       </div>
     );
   }

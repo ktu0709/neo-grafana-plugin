@@ -33,7 +33,10 @@ export const DEFAULT_QUERY: Partial<NeoQuery> = {
  */
 export interface NeoDataSourceOptions extends DataSourceJsonData {
   address?: string;
-  path?: string;
+  // path?: string;
+  clientCertPath?: string;
+  clientKeyPath?: string;
+  serverCertPath?: string;
 }
 
 /**
@@ -113,4 +116,3 @@ export const conditionList = [
   { value: '<=', label: '<=' },
   { value: 'in', label: 'in'},
 ];
-

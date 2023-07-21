@@ -116,18 +116,25 @@ export const createQuery = (request: DataQueryRequest<NeoQuery>, targets: NeoQue
                 if (!v.isStr) {
                     let queryStr = '';
                     if (v.op === 'in') {
-                        v.value = v.value.split(',').map((val) => {
-                            const trimVal = val.trim();
-                            return trimVal.startsWith('\'') ? trimVal : '\'' + trimVal + '\'';
-                        }).join(',');
+                        if (!v.value.startsWith('$')) {
+                            v.value = v.value.split(',').map((val) => {
+                                const trimVal = val.trim();
+                                return trimVal.startsWith('\'') ? trimVal : '\'' + trimVal + '\'';
+                            }).join(',');
+                        } 
                         v.value = '(' + v.value + ')';
                         queryStr = ' AND ' + v.key + ' ' + v.op + ' ' + v.value;
+
                     } else {
-                        queryStr = ' AND ' + v.key + v.op;
-                        if (!isNumberType(parseInt(v.type, 10)) && !v.value.startsWith('\'')) {
-                            queryStr += '\''+v.value+'\'';
+                        if (!v.value.startsWith('$')) {
+                            queryStr = ' AND ' + v.key + v.op;
+                            if (!isNumberType(parseInt(v.type, 10)) && !v.value.startsWith('\'')) {
+                                queryStr += '\''+v.value+'\'';
+                            } else {
+                                queryStr += v.value;
+                            }
                         } else {
-                            queryStr += v.value;
+                            queryStr = ' AND ' + v.key + v.op + v.value;
                         }
                     }
                     andQueryList.push(queryStr+' ');

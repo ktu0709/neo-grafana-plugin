@@ -6,6 +6,8 @@
   "metrics": true,
   "backend": true,
   "executable": "gpx_neo",
+  "annotations": true,
+  "alerting": false,
   "info": {
     "description": "Machbase neo",
     "author": {

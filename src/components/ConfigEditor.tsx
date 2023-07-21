@@ -7,15 +7,30 @@ const { FormField } = LegacyForms;
 
 interface Props extends DataSourcePluginOptionsEditorProps<NeoDataSourceOptions> { }
 
-interface State { }
+interface State { 
+  isHttpUnix: boolean,
+}
 
 export class ConfigEditor extends PureComponent<Props, State> {
+
+  constructor(props: any) {
+    super(props);
+    this.state = {
+      isHttpUnix: false,
+    };
+  }
+
   onAddressChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
     const jsonData = {
       ...options.jsonData,
       address: event.target.value,
     };
+    if (event.target.value.startsWith('http') || event.target.value.startsWith('unix')) {
+      this.setState({ isHttpUnix: true });
+    } else {
+      this.setState({ isHttpUnix: false });
+    }
     onOptionsChange({ ...options, jsonData });
   };
 
@@ -81,27 +96,10 @@ export class ConfigEditor extends PureComponent<Props, State> {
   //   });
   // };
 
-  
-
-  render() {
-    const { options } = this.props;
-    const { jsonData, secureJsonFields } = options;
-    // const secureJsonData = (options.secureJsonData || {}) as NeoSecureJsonData;
-
+  genOptionInput(jsonData: NeoDataSourceOptions) {
     return (
-      <div className="gf-form-group">
-        <div className="gf-form">
-          <FormField
-            label="Address"
-            labelWidth={8}
-            inputWidth={20}
-            onChange={this.onAddressChange}
-            value={jsonData.address || ''}
-            placeholder="localhost:5655"
-          />
-        </div>
-
-        <div className="gf-form">
+      <>
+      <div className="gf-form">
           <FormField
             label="Client Cert Path"
             labelWidth={8}
@@ -133,6 +131,30 @@ export class ConfigEditor extends PureComponent<Props, State> {
             placeholder="server certification path to frontend"
           />
         </div>
+      </>
+    )
+  }
+
+  render() {
+    const { options } = this.props;
+    const { jsonData, secureJsonFields } = options;
+    const { isHttpUnix } = this.state;
+    // const secureJsonData = (options.secureJsonData || {}) as NeoSecureJsonData;
+
+    return (
+      <div className="gf-form-group">
+        <div className="gf-form">
+          <FormField
+            label="Address"
+            labelWidth={8}
+            inputWidth={20}
+            onChange={this.onAddressChange}
+            value={jsonData.address || ''}
+            placeholder="localhost:5655"
+          />
+        </div>
+
+        {!isHttpUnix ? this.genOptionInput(jsonData) : null}
 
         {/* <div className="gf-form-inline">
           <div className="gf-form">

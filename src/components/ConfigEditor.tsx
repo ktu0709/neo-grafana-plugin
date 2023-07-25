@@ -156,7 +156,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
   render() {
     const { options } = this.props;
-    const { jsonData, secureJsonFields } = options;
+    const { jsonData } = options;
     const { isHttpUnix } = this.state;
     // const secureJsonData = (options.secureJsonData || {}) as NeoSecureJsonData;
 

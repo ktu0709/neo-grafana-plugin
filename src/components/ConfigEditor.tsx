@@ -1,5 +1,5 @@
 import React, { ChangeEvent, PureComponent } from 'react';
-import { LegacyForms } from '@grafana/ui';
+import { LegacyForms, Field } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { NeoDataSourceOptions } from '../types';
 
@@ -106,37 +106,45 @@ export class ConfigEditor extends PureComponent<Props, State> {
   genOptionInput(jsonData: NeoDataSourceOptions) {
     return (
       <>
-      <div className="gf-form">
-          <FormField
-            label="Client Cert Path"
-            labelWidth={8}
-            inputWidth={20}
-            onChange={this.onClientCertPathChange}
-            value={jsonData.clientCertPath || ''}
-            placeholder="client certification path to frontend"
-          />
+        <div className="gf-form">
+          <Field invalid={!jsonData.clientCertPath} error="client cert path is required" style={{ marginBottom: 0 }}>
+            <FormField
+              label="Client Cert Path"
+              labelWidth={8}
+              inputWidth={20}
+              onChange={this.onClientCertPathChange}
+              value={jsonData.clientCertPath || ''}
+              placeholder="client certification path to frontend"
+            />
+          </Field>
         </div>
 
         <div className="gf-form">
-          <FormField
-            label="Client Key Path"
-            labelWidth={8}
-            inputWidth={20}
-            onChange={this.onClientKeyPathChange}
-            value={jsonData.clientKeyPath || ''}
-            placeholder="client key path to frontend"
-          />
+          <Field invalid={!jsonData.clientKeyPath} error="client key path is required" style={{ marginBottom: 0 }}>
+            <FormField
+              label="Client Key Path"
+              labelWidth={8}
+              inputWidth={20}
+              onChange={this.onClientKeyPathChange}
+              value={jsonData.clientKeyPath || ''}
+              placeholder="client key path to frontend"
+              required
+              />
+          </Field>
         </div>
 
         <div className="gf-form">
-          <FormField
-            label="Server Cert Path"
-            labelWidth={8}
-            inputWidth={20}
-            onChange={this.onServerCertPathChange}
-            value={jsonData.serverCertPath || ''}
-            placeholder="server certification path to frontend"
-          />
+          <Field invalid={!jsonData.serverCertPath} error="server cert path is required" style={{ marginBottom: 0 }}>
+            <FormField
+              label="Server Cert Path"
+              labelWidth={8}
+              inputWidth={20}
+              onChange={this.onServerCertPathChange}
+              value={jsonData.serverCertPath || ''}
+              placeholder="server certification path to frontend"
+              required
+              />
+          </Field>
         </div>
       </>
     )

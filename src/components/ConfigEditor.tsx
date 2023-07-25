@@ -20,6 +20,13 @@ export class ConfigEditor extends PureComponent<Props, State> {
     };
   }
 
+  componentDidMount(): void {
+    const addr = this.props.options.jsonData.address;
+    if (addr?.startsWith('unix') || addr?.startsWith('http')) {
+      this.setState({ isHttpUnix: true });
+    }
+  }
+
   onAddressChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
     const jsonData = {

@@ -22,6 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MachbaseClient interface {
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
 	QueryRow(ctx context.Context, in *QueryRowRequest, opts ...grpc.CallOption) (*QueryRowResponse, error)
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
@@ -31,7 +32,9 @@ type MachbaseClient interface {
 	Appender(ctx context.Context, in *AppenderRequest, opts ...grpc.CallOption) (*AppenderResponse, error)
 	Append(ctx context.Context, opts ...grpc.CallOption) (Machbase_AppendClient, error)
 	Explain(ctx context.Context, in *ExplainRequest, opts ...grpc.CallOption) (*ExplainResponse, error)
+	UserAuth(ctx context.Context, in *UserAuthRequest, opts ...grpc.CallOption) (*UserAuthResponse, error)
 	GetServerInfo(ctx context.Context, in *ServerInfoRequest, opts ...grpc.CallOption) (*ServerInfo, error)
+	GetServicePorts(ctx context.Context, in *ServicePortsRequest, opts ...grpc.CallOption) (*ServicePorts, error)
 }
 
 type machbaseClient struct {
@@ -40,6 +43,15 @@ type machbaseClient struct {
 
 func NewMachbaseClient(cc grpc.ClientConnInterface) MachbaseClient {
 	return &machbaseClient{cc}
+}
+
+func (c *machbaseClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
+	out := new(PingResponse)
+	err := c.cc.Invoke(ctx, "/machrpc.Machbase/Ping", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *machbaseClient) Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error) {
@@ -148,9 +160,27 @@ func (c *machbaseClient) Explain(ctx context.Context, in *ExplainRequest, opts .
 	return out, nil
 }
 
+func (c *machbaseClient) UserAuth(ctx context.Context, in *UserAuthRequest, opts ...grpc.CallOption) (*UserAuthResponse, error) {
+	out := new(UserAuthResponse)
+	err := c.cc.Invoke(ctx, "/machrpc.Machbase/UserAuth", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *machbaseClient) GetServerInfo(ctx context.Context, in *ServerInfoRequest, opts ...grpc.CallOption) (*ServerInfo, error) {
 	out := new(ServerInfo)
 	err := c.cc.Invoke(ctx, "/machrpc.Machbase/GetServerInfo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *machbaseClient) GetServicePorts(ctx context.Context, in *ServicePortsRequest, opts ...grpc.CallOption) (*ServicePorts, error) {
+	out := new(ServicePorts)
+	err := c.cc.Invoke(ctx, "/machrpc.Machbase/GetServicePorts", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +191,7 @@ func (c *machbaseClient) GetServerInfo(ctx context.Context, in *ServerInfoReques
 // All implementations must embed UnimplementedMachbaseServer
 // for forward compatibility
 type MachbaseServer interface {
+	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
 	QueryRow(context.Context, *QueryRowRequest) (*QueryRowResponse, error)
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
@@ -170,7 +201,9 @@ type MachbaseServer interface {
 	Appender(context.Context, *AppenderRequest) (*AppenderResponse, error)
 	Append(Machbase_AppendServer) error
 	Explain(context.Context, *ExplainRequest) (*ExplainResponse, error)
+	UserAuth(context.Context, *UserAuthRequest) (*UserAuthResponse, error)
 	GetServerInfo(context.Context, *ServerInfoRequest) (*ServerInfo, error)
+	GetServicePorts(context.Context, *ServicePortsRequest) (*ServicePorts, error)
 	mustEmbedUnimplementedMachbaseServer()
 }
 
@@ -178,6 +211,9 @@ type MachbaseServer interface {
 type UnimplementedMachbaseServer struct {
 }
 
+func (UnimplementedMachbaseServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
+}
 func (UnimplementedMachbaseServer) Exec(context.Context, *ExecRequest) (*ExecResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Exec not implemented")
 }
@@ -205,8 +241,14 @@ func (UnimplementedMachbaseServer) Append(Machbase_AppendServer) error {
 func (UnimplementedMachbaseServer) Explain(context.Context, *ExplainRequest) (*ExplainResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Explain not implemented")
 }
+func (UnimplementedMachbaseServer) UserAuth(context.Context, *UserAuthRequest) (*UserAuthResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UserAuth not implemented")
+}
 func (UnimplementedMachbaseServer) GetServerInfo(context.Context, *ServerInfoRequest) (*ServerInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetServerInfo not implemented")
+}
+func (UnimplementedMachbaseServer) GetServicePorts(context.Context, *ServicePortsRequest) (*ServicePorts, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetServicePorts not implemented")
 }
 func (UnimplementedMachbaseServer) mustEmbedUnimplementedMachbaseServer() {}
 
@@ -219,6 +261,24 @@ type UnsafeMachbaseServer interface {
 
 func RegisterMachbaseServer(s grpc.ServiceRegistrar, srv MachbaseServer) {
 	s.RegisterService(&Machbase_ServiceDesc, srv)
+}
+
+func _Machbase_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachbaseServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/machrpc.Machbase/Ping",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachbaseServer).Ping(ctx, req.(*PingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Machbase_Exec_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -391,6 +451,24 @@ func _Machbase_Explain_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machbase_UserAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachbaseServer).UserAuth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/machrpc.Machbase/UserAuth",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachbaseServer).UserAuth(ctx, req.(*UserAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Machbase_GetServerInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ServerInfoRequest)
 	if err := dec(in); err != nil {
@@ -409,6 +487,24 @@ func _Machbase_GetServerInfo_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Machbase_GetServicePorts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServicePortsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MachbaseServer).GetServicePorts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/machrpc.Machbase/GetServicePorts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MachbaseServer).GetServicePorts(ctx, req.(*ServicePortsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Machbase_ServiceDesc is the grpc.ServiceDesc for Machbase service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -416,6 +512,10 @@ var Machbase_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "machrpc.Machbase",
 	HandlerType: (*MachbaseServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Ping",
+			Handler:    _Machbase_Ping_Handler,
+		},
 		{
 			MethodName: "Exec",
 			Handler:    _Machbase_Exec_Handler,
@@ -449,8 +549,16 @@ var Machbase_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Machbase_Explain_Handler,
 		},
 		{
+			MethodName: "UserAuth",
+			Handler:    _Machbase_UserAuth_Handler,
+		},
+		{
 			MethodName: "GetServerInfo",
 			Handler:    _Machbase_GetServerInfo_Handler,
+		},
+		{
+			MethodName: "GetServicePorts",
+			Handler:    _Machbase_GetServicePorts_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

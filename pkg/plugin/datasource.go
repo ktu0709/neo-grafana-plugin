@@ -58,8 +58,12 @@ func NewDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.In
 			client = nil
 		}
 	} else {
-		client = machrpc.NewClient()
-		clientError = client.(*machrpc.Client).Connect(options.Address)
+		client = machrpc.NewClient(
+			machrpc.WithServer(options.Address),
+			machrpc.WithCertificate(options.ClientKeyPath, options.ClientCertPath, options.ServerCertPath),
+			machrpc.WithQueryTimeout(5*time.Second),
+		)
+		clientError = client.(*machrpc.Client).Connect()
 		if clientError != nil {
 			client = nil
 		}
@@ -103,7 +107,10 @@ type Datasource struct {
 }
 
 type DatasourceOptions struct {
-	Address string `json:"address"`
+	Address        string `json:"address"`
+	ClientKeyPath  string `json:"clientKeyPath"`
+	ClientCertPath string `json:"clientCertPath"`
+	ServerCertPath string `json:"serverCertPath"`
 }
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance

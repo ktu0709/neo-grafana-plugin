@@ -1,3 +1,5 @@
+// package machrpc is a refrence implementation of client
+// that interwork with machbase-neo server via gRPC.
 package machrpc
 
 import (
@@ -5,43 +7,53 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
-	"strings"
+	"sync"
 	"time"
 
+	spi "github.com/machbase/neo-spi"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
+// Client is a convenient data type represents client side of machbase-neo.
+//
+//	client := machrpc.NewClient(WithServer(serverAddr, "path/to/server_cert.pem"))
+//
+// serverAddr can be tcp://ipaddr:port or unix://path.
+// The path of unix domain socket can be absolute/releative path.
 type Client struct {
 	conn grpc.ClientConnInterface
 	cli  MachbaseClient
 
+	serverAddr    string
+	serverCert    string
+	certPath      string
+	keyPath       string
 	closeTimeout  time.Duration
 	queryTimeout  time.Duration
 	appendTimeout time.Duration
 }
 
-func NewClient(options ...ClientOption) *Client {
+// NewClient creates new instance of Client.
+func NewClient(opts ...Option) spi.DatabaseClient {
 	client := &Client{
 		closeTimeout:  3 * time.Second,
 		queryTimeout:  0,
 		appendTimeout: 3 * time.Second,
 	}
-	for _, opt := range options {
-		switch o := opt.(type) {
-		case *queryTimeoutOption:
-			client.queryTimeout = o.timeout
-		case *closeTimeoutOption:
-			client.closeTimeout = o.timeout
-		case *appendTimeoutOption:
-			client.appendTimeout = o.timeout
-		}
+	for _, o := range opts {
+		o(client)
 	}
 	return client
 }
 
-func (client *Client) Connect(serverAddr string) error {
-	conn, err := MakeGrpcConn(serverAddr)
+// Connect make a connection to the server
+func (client *Client) Connect() error {
+	if client.serverAddr == "" {
+		return errors.New("server address is not specified")
+	}
+	conn, err := MakeGrpcTlsConn(client.serverAddr, client.keyPath, client.certPath, client.serverCert)
 	if err != nil {
 		return errors.Wrap(err, "NewClient")
 	}
@@ -50,12 +62,43 @@ func (client *Client) Connect(serverAddr string) error {
 	return nil
 }
 
+// Disconnect release connection to the server.
 func (client *Client) Disconnect() {
 	client.conn = nil
 	client.cli = nil
 }
 
-func (client *Client) GetServerInfo() (*ServerInfo, error) {
+func (client *Client) Ping() (time.Duration, error) {
+	ctx, cancelFunc := client.queryContext()
+	defer cancelFunc()
+	tick := time.Now()
+	req := &PingRequest{Token: tick.UnixNano()}
+	rsp, err := client.cli.Ping(ctx, req)
+	if err != nil {
+		return time.Since(tick), err
+	}
+	if !rsp.Success {
+		return time.Since(tick), errors.New(rsp.Reason)
+	}
+	return time.Since(tick), nil
+}
+
+func (client *Client) UserAuth(user string, password string) (bool, error) {
+	ctx, cancelFunc := client.queryContext()
+	defer cancelFunc()
+	req := &UserAuthRequest{LoginName: user, Password: password}
+	rsp, err := client.cli.UserAuth(ctx, req)
+	if err != nil {
+		return false, err
+	}
+	if !rsp.Success {
+		return false, errors.New(rsp.Reason)
+	}
+	return true, nil
+}
+
+// GetServerInfo invoke gRPC call to get ServerInfo
+func (client *Client) GetServerInfo() (*spi.ServerInfo, error) {
 	ctx, cancelFunc := client.queryContext()
 	defer cancelFunc()
 	req := &ServerInfoRequest{}
@@ -66,13 +109,60 @@ func (client *Client) GetServerInfo() (*ServerInfo, error) {
 	if !rsp.Success {
 		return nil, errors.New(rsp.Reason)
 	}
-	return rsp, nil
+	return toSpiServerInfo(rsp), nil
 }
 
-func (client *Client) Explain(sqlText string) (string, error) {
+func toSpiServerInfo(info *ServerInfo) *spi.ServerInfo {
+	return &spi.ServerInfo{
+		Version: spi.Version{
+			Major:          info.Version.Major,
+			Minor:          info.Version.Minor,
+			Patch:          info.Version.Patch,
+			GitSHA:         info.Version.GitSHA,
+			BuildTimestamp: info.Version.BuildTimestamp,
+			BuildCompiler:  info.Version.BuildCompiler,
+			Engine:         info.Version.Engine,
+		},
+		Runtime: spi.Runtime{
+			OS:             info.Runtime.OS,
+			Arch:           info.Runtime.Arch,
+			Pid:            info.Runtime.Pid,
+			UptimeInSecond: info.Runtime.UptimeInSecond,
+			Processes:      info.Runtime.Processes,
+			Goroutines:     info.Runtime.Goroutines,
+			MemSys:         info.Runtime.MemSys,
+			MemHeapSys:     info.Runtime.MemHeapSys,
+			MemHeapAlloc:   info.Runtime.MemHeapAlloc,
+			MemHeapInUse:   info.Runtime.MemHeapInUse,
+			MemStackSys:    info.Runtime.MemStackSys,
+			MemStackInUse:  info.Runtime.MemStackInUse,
+		},
+	}
+}
+
+func (client *Client) GetServicePorts(svc string) ([]*spi.ServicePort, error) {
 	ctx, cancelFunc := client.queryContext()
 	defer cancelFunc()
-	req := &ExplainRequest{Sql: sqlText}
+	req := &ServicePortsRequest{Service: svc}
+	rsp, err := client.cli.GetServicePorts(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	ports := []*spi.ServicePort{}
+	for _, p := range rsp.Ports {
+		ports = append(ports, &spi.ServicePort{
+			Service: p.Service, Address: p.Address,
+		})
+	}
+	return ports, nil
+}
+
+// Explain retrieve execution plan of the given SQL statement.
+func (client *Client) Explain(sqlText string, full bool) (string, error) {
+	ctx, cancelFunc := client.queryContext()
+	defer cancelFunc()
+	req := &ExplainRequest{Sql: sqlText, Full: full}
 	rsp, err := client.cli.Explain(ctx, req)
 	if err != nil {
 		return "", err
@@ -83,159 +173,29 @@ func (client *Client) Explain(sqlText string) (string, error) {
 	return rsp.Plan, nil
 }
 
-type Description interface {
-	description()
-}
-
-func (td *TableDescription) description()  {}
-func (cd *ColumnDescription) description() {}
-
-type TableDescription struct {
-	Name    string               `json:"name"`
-	Type    TableType            `json:"type"`
-	Flag    int                  `json:"flag"`
-	Id      int                  `json:"id"`
-	Columns []*ColumnDescription `json:"columns"`
-}
-
-func (td *TableDescription) TypeString() string {
-	return TableTypeDescription(td.Type, td.Flag)
-}
-
-func TableTypeDescription(typ TableType, flag int) string {
-	desc := "undef"
-	switch typ {
-	case LogTableType:
-		desc = "Log Table"
-	case FixedTableType:
-		desc = "Fixed Table"
-	case VolatileTableType:
-		desc = "Volatile Table"
-	case LookupTableType:
-		desc = "Lookup Table"
-	case KeyValueTableType:
-		desc = "KeyValue Table"
-	case TagTableType:
-		desc = "Tag Table"
-	}
-	switch flag {
-	case 1:
-		desc += " (data)"
-	case 2:
-		desc += " (rollup)"
-	case 4:
-		desc += " (meta)"
-	case 8:
-		desc += " (stat)"
-	}
-	return desc
-}
-
-type ColumnDescription struct {
-	Id     uint64     `json:"id"`
-	Name   string     `json:"name"`
-	Type   ColumnType `json:"type"`
-	Length int        `json:"length"`
-}
-
-func (cd *ColumnDescription) TypeString() string {
-	return ColumnTypeDescription(cd.Type)
-}
-
-func ColumnTypeDescription(typ ColumnType) string {
-	switch typ {
-	case Int16ColumnType:
-		return "int16"
-	case Uint16ColumnType:
-		return "uint16"
-	case Int32ColumnType:
-		return "int32"
-	case Uint32ColumnType:
-		return "uint32"
-	case Int64ColumnType:
-		return "int64"
-	case Uint64ColumnType:
-		return "uint64"
-	case Float32ColumnType:
-		return "float"
-	case Float64ColumnType:
-		return "double"
-	case VarcharColumnType:
-		return "varchar"
-	case TextColumnType:
-		return "text"
-	case ClobColumnType:
-		return "clob"
-	case BlobColumnType:
-		return "blob"
-	case BinaryColumnType:
-		return "binary"
-	case DatetimeColumnType:
-		return "datetime"
-	case IpV4ColumnType:
-		return "ipv4"
-	case IpV6ColumnType:
-		return "ipv6"
-	default:
-		return "undef"
-	}
-}
-
-func (client *Client) Describe(name string) (Description, error) {
-	d := &TableDescription{}
-	var tableType int
-	var colCount int
-	var colType int
-	r := client.QueryRow("select name, type, flag, id, colcount from M$SYS_TABLES where name = ?", strings.ToUpper(name))
-	if err := r.Scan(&d.Name, &tableType, &d.Flag, &d.Id, &colCount); err != nil {
-		return nil, err
-	}
-	d.Type = TableType(tableType)
-
-	rows, err := client.Query(`
-		select
-			name, type, length, id
-		from
-			M$SYS_COLUMNS
-		where
-			table_id = ? 
-		order by id`, d.Id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		col := &ColumnDescription{}
-		err = rows.Scan(&col.Name, &colType, &col.Length, &col.Id)
-		if err != nil {
-			return nil, err
-		}
-		col.Type = ColumnType(colType)
-		d.Columns = append(d.Columns, col)
-	}
-	return d, nil
-}
-
 func (client *Client) queryContext() (context.Context, context.CancelFunc) {
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.New(map[string]string{"client": "machrpc"}))
+	cancel := func() {}
 	if client.queryTimeout > 0 {
-		return context.WithTimeout(context.Background(), client.queryTimeout)
-	} else {
-		ctx := context.Background()
-		return ctx, func() {}
+		ctx, cancel = context.WithTimeout(ctx, client.queryTimeout)
 	}
+	return ctx, cancel
 }
 
-func (client *Client) Exec(sqlText string, params ...any) error {
+// Exec executes SQL statements that does not return result
+// like 'ALTER', 'CREATE TABLE', 'DROP TABLE', ...
+func (client *Client) Exec(sqlText string, params ...any) spi.Result {
 	ctx, cancelFunc := client.queryContext()
 	defer cancelFunc()
 	return client.ExecContext(ctx, sqlText, params...)
 }
 
-func (client *Client) ExecContext(ctx context.Context, sqlText string, params ...any) error {
+// Exec executes SQL statements that does not return result
+// like 'ALTER', 'CREATE TABLE', 'DROP TABLE', ...
+func (client *Client) ExecContext(ctx context.Context, sqlText string, params ...any) spi.Result {
 	pbparams, err := ConvertAnyToPb(params)
 	if err != nil {
-		return err
+		return &ExecResult{err: err}
 	}
 	req := &ExecRequest{
 		Sql:    sqlText,
@@ -243,21 +203,62 @@ func (client *Client) ExecContext(ctx context.Context, sqlText string, params ..
 	}
 	rsp, err := client.cli.Exec(ctx, req)
 	if err != nil {
-		return err
+		return &ExecResult{err: err}
 	}
 	if !rsp.Success {
-		return fmt.Errorf(rsp.Reason)
+		return &ExecResult{err: errors.New(rsp.Reason), message: rsp.Reason}
 	}
-	return nil
+	return &ExecResult{message: rsp.Reason, rowsAffected: rsp.RowsAffected}
 }
 
-func (client *Client) Query(sqlText string, params ...any) (*Rows, error) {
+type ExecResult struct {
+	err          error
+	rowsAffected int64
+	message      string
+}
+
+func (r *ExecResult) Err() error {
+	return r.err
+}
+
+func (r *ExecResult) RowsAffected() int64 {
+	return r.rowsAffected
+}
+
+func (r *ExecResult) Message() string {
+	return r.message
+}
+
+// Query executes SQL statements that are expected multipe rows as result.
+// Commonly used to execute 'SELECT * FROM <TABLE>'
+//
+// Rows returned by Query() must be closed to prevent leaking resources.
+//
+//	rows, err := client.Query("select * from my_table where name = ?", "my_name")
+//	if err != nil {
+//		panic(err)
+//	}
+//	defer rows.Close()
+func (client *Client) Query(sqlText string, params ...any) (spi.Rows, error) {
 	ctx, cancelFunc := client.queryContext()
 	defer cancelFunc()
 	return client.QueryContext(ctx, sqlText, params...)
 }
 
-func (client *Client) QueryContext(ctx context.Context, sqlText string, params ...any) (*Rows, error) {
+// Query executes SQL statements that are expected multipe rows as result.
+// Commonly used to execute 'SELECT * FROM <TABLE>'
+//
+// Rows returned by QueryContext() must be closed to prevent leaking resources.
+//
+//	ctx, cancelFunc := context.WithTimeout(5*time.Second)
+//	defer cancelFunc()
+//
+//	rows, err := client.QueryContext(ctx, "select * from my_table where name = ?", my_name)
+//	if err != nil {
+//		panic(err)
+//	}
+//	defer rows.Close()
+func (client *Client) QueryContext(ctx context.Context, sqlText string, params ...any) (spi.Rows, error) {
 	pbparams, err := ConvertAnyToPb(params)
 	if err != nil {
 		return nil, err
@@ -270,7 +271,7 @@ func (client *Client) QueryContext(ctx context.Context, sqlText string, params .
 	}
 
 	if rsp.Success {
-		return &Rows{client: client, message: rsp.Reason, handle: rsp.RowsHandle}, nil
+		return &Rows{client: client, rowsAffected: rsp.RowsAffected, message: rsp.Reason, handle: rsp.RowsHandle}, nil
 	} else {
 		if len(rsp.Reason) > 0 {
 			return nil, errors.New(rsp.Reason)
@@ -280,13 +281,15 @@ func (client *Client) QueryContext(ctx context.Context, sqlText string, params .
 }
 
 type Rows struct {
-	client  *Client
-	message string
-	handle  *RowsHandle
-	values  []any
-	err     error
+	client       *Client
+	message      string
+	rowsAffected int64
+	handle       *RowsHandle
+	values       []any
+	err          error
 }
 
+// Close release all resources that assigned to the Rows
 func (rows *Rows) Close() error {
 	var ctx context.Context
 	if rows.client.closeTimeout > 0 {
@@ -300,6 +303,7 @@ func (rows *Rows) Close() error {
 	return err
 }
 
+// IsFetchable returns true if statement that produced this Rows was fetch-able (e.g was select?)
 func (rows *Rows) IsFetchable() bool {
 	return rows.handle != nil
 }
@@ -308,7 +312,12 @@ func (rows *Rows) Message() string {
 	return rows.message
 }
 
-func (rows *Rows) Columns() ([]*Column, error) {
+func (rows *Rows) RowsAffected() int64 {
+	return rows.rowsAffected
+}
+
+// Columns returns list of column info that consists of result of query statement.
+func (rows *Rows) Columns() (spi.Columns, error) {
 	ctx, cancelFunc := rows.client.queryContext()
 	defer cancelFunc()
 
@@ -317,7 +326,7 @@ func (rows *Rows) Columns() ([]*Column, error) {
 		return nil, err
 	}
 	if rsp.Success {
-		return rsp.Columns, nil
+		return toSpiColumns(rsp.Columns), nil
 	} else {
 		if len(rsp.Reason) > 0 {
 			return nil, errors.New(rsp.Reason)
@@ -327,6 +336,27 @@ func (rows *Rows) Columns() ([]*Column, error) {
 	}
 }
 
+func toSpiColumns(cols []*Column) spi.Columns {
+	rt := make([]*spi.Column, len(cols))
+	for i, c := range cols {
+		rt[i] = &spi.Column{
+			Name:   c.Name,
+			Type:   c.Type,
+			Size:   int(c.Size),
+			Length: int(c.Length),
+		}
+	}
+	return rt
+}
+
+// Next returns true if there are at least one more record that can be fetchable
+// rows, _ := client.Query("select name, value from my_table")
+//
+//	for rows.Next(){
+//		var name string
+//		var value float64
+//		rows.Scan(&name, &value)
+//	}
 func (rows *Rows) Next() bool {
 	if rows.err != nil {
 		return false
@@ -352,6 +382,13 @@ func (rows *Rows) Next() bool {
 	return !rsp.HasNoRows
 }
 
+// Scan retrieve values of columns
+//
+//	for rows.Next(){
+//		var name string
+//		var value float64
+//		rows.Scan(&name, &value)
+//	}
 func (rows *Rows) Scan(cols ...any) error {
 	if rows.err != nil {
 		return rows.err
@@ -362,13 +399,18 @@ func (rows *Rows) Scan(cols ...any) error {
 	return scan(rows.values, cols)
 }
 
-func (client *Client) QueryRow(sqlText string, params ...any) *Row {
+// QueryRow executes a SQL statement that expects a single row result.
+//
+//	var cnt int
+//	row := client.QueryRoq("select count(*) from my_table where name = ?", "my_name")
+//	row.Scan(&cnt)
+func (client *Client) QueryRow(sqlText string, params ...any) spi.Row {
 	ctx, cancelFunc := client.queryContext()
 	defer cancelFunc()
 	return client.QueryRowContext(ctx, sqlText, params...)
 }
 
-func (client *Client) QueryRowContext(ctx context.Context, sqlText string, params ...any) *Row {
+func (client *Client) QueryRowContext(ctx context.Context, sqlText string, params ...any) spi.Row {
 	pbparams, err := ConvertAnyToPb(params)
 	if err != nil {
 		return &Row{success: false, err: err}
@@ -382,7 +424,7 @@ func (client *Client) QueryRowContext(ctx context.Context, sqlText string, param
 
 	var row = &Row{}
 	row.success = rsp.Success
-	row.affectedRows = rsp.AffectedRows
+	row.rowsAffected = rsp.RowsAffected
 	row.err = nil
 	if !rsp.Success && len(rsp.Reason) > 0 {
 		row.err = errors.New(rsp.Reason)
@@ -396,7 +438,11 @@ type Row struct {
 	err     error
 	values  []any
 
-	affectedRows int64
+	rowsAffected int64
+}
+
+func (row *Row) Success() bool {
+	return row.success
 }
 
 func (row *Row) Err() error {
@@ -415,7 +461,15 @@ func (row *Row) Scan(cols ...any) error {
 }
 
 func (row *Row) RowsAffected() int64 {
-	return row.affectedRows
+	return row.rowsAffected
+}
+
+func (row *Row) Message() string {
+	// TODO
+	return ""
+}
+func (row *Row) Values() []any {
+	return row.values
 }
 
 func scan(src []any, dst []any) error {
@@ -477,7 +531,13 @@ func scan(src []any, dst []any) error {
 	return nil
 }
 
-func (client *Client) Appender(tableName string) (*Appender, error) {
+// Appender creates a new Appender for the given table.
+// Appender should be closed otherwise it may cause server side resource leak.
+//
+//	app, _ := client.Appender("MYTABLE")
+//	defer app.Close()
+//	app.Append("name", time.Now(), 3.14)
+func (client *Client) Appender(tableName string, opts ...spi.AppendOption) (spi.Appender, error) {
 	var ctx0 context.Context
 	if client.appendTimeout > 0 {
 		_ctx, _cf := context.WithTimeout(context.Background(), client.appendTimeout)
@@ -487,7 +547,21 @@ func (client *Client) Appender(tableName string) (*Appender, error) {
 		ctx0 = context.Background()
 	}
 
-	openRsp, err := client.cli.Appender(ctx0, &AppenderRequest{TableName: tableName})
+	timeformat := "ns"
+
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		default:
+			timeformat = "ns"
+		case spi.AppendTimeformatOption:
+			timeformat = string(v)
+		}
+	}
+
+	openRsp, err := client.cli.Appender(ctx0, &AppenderRequest{
+		TableName:  tableName,
+		Timeformat: timeformat,
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Appender")
 	}
@@ -501,48 +575,111 @@ func (client *Client) Appender(tableName string) (*Appender, error) {
 		return nil, errors.Wrap(err, "AppendClient")
 	}
 
-	return &Appender{
+	ap := &Appender{
 		client:       client,
 		appendClient: appendClient,
-		tableName:    tableName,
+		tableName:    openRsp.TableName,
+		tableType:    spi.TableType(openRsp.TableType),
 		handle:       openRsp.Handle,
-	}, nil
+	}
+	ap.bufferTicker = time.NewTicker(time.Second)
+	go func() {
+		for range ap.bufferTicker.C {
+			ap.flush(nil)
+		}
+	}()
+
+	return ap, nil
 }
 
 type Appender struct {
 	client       *Client
 	appendClient Machbase_AppendClient
 	tableName    string
+	tableType    spi.TableType
 	handle       string
+
+	buffer       []*AppendRecord
+	bufferLock   sync.Mutex
+	bufferTicker *time.Ticker
 }
 
-func (appender *Appender) Close() error {
+// Close releases all resources that allocated to the Appender
+func (appender *Appender) Close() (int64, int64, error) {
 	if appender.appendClient == nil {
-		return nil
+		return 0, 0, nil
 	}
+
+	if appender.bufferTicker != nil {
+		appender.bufferTicker.Stop()
+	}
+	appender.flush(nil)
 
 	client := appender.appendClient
 	appender.appendClient = nil
 
-	err := client.CloseSend()
+	done, err := client.CloseAndRecv()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
-	return nil
+	return done.SuccessCount, done.FailCount, nil
 }
 
+func (appender *Appender) TableName() string {
+	return appender.tableName
+}
+
+func (appender *Appender) TableType() spi.TableType {
+	return appender.tableType
+}
+
+func (appender *Appender) AppendWithTimestamp(ts time.Time, cols ...any) error {
+	return appender.Append(append([]any{ts}, cols...))
+}
+
+// Append appends a new record of the table.
 func (appender *Appender) Append(cols ...any) error {
 	if appender.appendClient == nil {
 		return sql.ErrTxDone
 	}
 
-	params, err := ConvertAnyToPb(cols)
+	params, err := ConvertAnyToPbTuple(cols)
 	if err != nil {
 		return err
 	}
-	err = appender.appendClient.Send(&AppendData{
-		Handle: appender.handle,
-		Params: params,
+	appender.flush(&AppendRecord{Tuple: params})
+	return err
+}
+
+func (appender *Appender) Columns() (spi.Columns, error) {
+	// TODO implements
+	return nil, nil
+}
+
+// force flush if rec is nil
+// allow buffering if rec is not nil
+func (appender *Appender) flush(rec *AppendRecord) error {
+	appender.bufferLock.Lock()
+	defer appender.bufferLock.Unlock()
+
+	if rec != nil {
+		appender.buffer = append(appender.buffer, rec)
+	}
+	if len(appender.buffer) == 0 {
+		return nil
+	}
+
+	if rec != nil && len(appender.buffer) < 400 {
+		// write new record, but not enough to flush to network
+		return nil
+	}
+
+	err := appender.appendClient.Send(&AppendData{
+		Handle:  appender.handle,
+		Records: appender.buffer,
 	})
+	if err == nil {
+		appender.buffer = appender.buffer[:0]
+	}
 	return err
 }

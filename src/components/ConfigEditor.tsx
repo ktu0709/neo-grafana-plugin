@@ -1,4 +1,4 @@
-import React, { ChangeEvent, PureComponent } from 'react';
+import React, { ChangeEvent, PureComponent, FocusEvent } from 'react';
 import { LegacyForms, Field } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { NeoDataSourceOptions } from '../types';
@@ -33,11 +33,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
       ...options.jsonData,
       address: event.target.value,
     };
-    if (event.target.value.startsWith('http') || event.target.value.startsWith('unix')) {
-      this.setState({ isHttpUnix: true });
-    } else {
-      this.setState({ isHttpUnix: false });
-    }
     onOptionsChange({ ...options, jsonData });
   };
 
@@ -76,6 +71,15 @@ export class ConfigEditor extends PureComponent<Props, State> {
     };
     onOptionsChange({ ...options, jsonData });
   };
+
+  onBlurAddress = (event: FocusEvent<HTMLInputElement>) => {
+    console.log('evnet', event.target.value)
+    if (event.target.value.startsWith('http') || event.target.value.startsWith('unix')) {
+      this.setState({ isHttpUnix: true });
+    } else {
+      this.setState({ isHttpUnix: false });
+    }
+  }
 
   // Secure field (only sent to the backend)
   // onAPIKeyChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -166,6 +170,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
             onChange={this.onAddressChange}
             value={jsonData.address || ''}
             placeholder="localhost:5655"
+            onBlur={this.onBlurAddress}
           />
         </div>
 

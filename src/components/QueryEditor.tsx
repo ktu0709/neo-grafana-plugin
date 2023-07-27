@@ -6,7 +6,7 @@ import {
     InlineLabel,
     Input,
     // LegacyForms,
-    Checkbox,
+    // Checkbox,
 } from '@grafana/ui';
 
 import { DataSource } from '../datasource';
@@ -237,7 +237,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 valueField: numberColumn.value,
                 timeField: sameTable && query.timeField ? query.timeField : isDateType ? transData.filter((v: any) => v.type === 6)[0].value : null,
                 aggrFunc: sameTable && query.aggrFunc ? query.aggrFunc : 'avg',
-                // rollupTable: isTagTable(type) ? true : false,
+                rollupTable: false,
                 title: query.title ?? '',
             })
             setColumnType(numberColumn.type)
@@ -258,11 +258,11 @@ export const QueryEditor: React.FC<Props> = (props) => {
 
     const toggleIsAggr = (aggr: boolean) => {
         if (aggr) {
-            onChange({ ...query, aggrFunc: '', valueType: 'input', rollupTable: false });
+            onChange({ ...query, aggrFunc: 'none', valueType: 'input', rollupTable: false });
             // disable rollup checkbox
             setDisableRollup(true);
         } else {
-            onChange({ ...query, aggrFunc: '', valueType: 'select' });
+            onChange({ ...query, aggrFunc: 'avg', valueType: 'select' });
             setDisableRollup(false);
         }
         setIsAggr(aggr)
@@ -423,8 +423,13 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 <div style={{width: 40 * 8, marginRight: 5}}>
                     <Select width={40} value={timeField} options={columnNameList.filter((column: any) => column.type === 6)} onChange={(v: any) => onChangeTimeField(v)} />
                 </div>
-                <div style={{ display: showRollup ? '' : 'none'}}>
-                    <Checkbox value={rollupTable} disabled={disableRollup} label={'use rollup'} onChange={onChangeRollup} />
+                <div style={{
+                    display: showRollup ? 'flex' : 'none',
+                    color: disableRollup ? 'gray' : '',
+                    gap: '0.5rem',
+                }}>
+                    <input id="rollup" type='checkbox' checked={rollupTable} disabled={disableRollup} onChange={onChangeRollup} style={{cursor: disableRollup ? "not-allowed" : "pointer"}} />
+                    <label htmlFor="rollup" style={{cursor: disableRollup ? "not-allowed" : "pointer"}}>use rollup</label>
                 </div>
             </div>
 

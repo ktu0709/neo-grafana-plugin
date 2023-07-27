@@ -19,7 +19,7 @@ export const DEFAULT_QUERY: Partial<NeoQuery> = {
   queryText: '',
   tableName: '',
   tableType: -1,
-  rollupTable: true,
+  rollupTable: false,
   aggrFunc: 'avg',
   valueField: '',
   valueType: 'select',

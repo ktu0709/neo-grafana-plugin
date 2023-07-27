@@ -170,7 +170,7 @@ export const createQuery = (request: DataQueryRequest<NeoQuery>, targets: NeoQue
                 customTitle = '\'' + target.valueField + '\'';
             }
             if (target.tableType === 6 && target.aggrFunc !== 'none' && target.filters && target.filters.length > 0 && (target.filters[0].value !== '' && target.filters[0].key !== 'none') && !target.filters[0].isStr) {
-                customTitle = '\"' + target.filters[0].value + '(' + target.aggrFunc + ')\"';
+                customTitle = '\'' + target.filters[0].value.replace(/'/gi, '') + '(' + target.aggrFunc + ')\'';
             }
             if (target.title !== '') {
                 customTitle = '\'' + target.title + '\'';

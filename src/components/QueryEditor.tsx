@@ -6,7 +6,7 @@ import {
     InlineLabel,
     Input,
     // LegacyForms,
-    Checkbox,
+    // Checkbox,
 } from '@grafana/ui';
 
 import { DataSource } from '../datasource';
@@ -36,8 +36,9 @@ export const QueryEditor: React.FC<Props> = (props) => {
     } = query;
 
     const [isAggr, setIsAggr] = useState<boolean>(valueType === 'select' ? false : true);
-    const [isRollup, setIsRollup] = useState<boolean>(true);
+    const [isRollup, setIsRollup] = useState<boolean>(false);
     const [showRollup, setShowRollup] = useState<boolean>(true);  // show rollup checkbox ui
+    const [disableRollup, setDisableRollup] = useState<boolean>(false);
     const [columnType, setColumnType] = useState<number>(0);
     const [tableNameList, setTableNameList] = useState([]);
     const [columnNameList, setColumnNameList] = useState([]);
@@ -93,11 +94,18 @@ export const QueryEditor: React.FC<Props> = (props) => {
             }
         }
         setIsRollup(isTagTable(event.type));
-        setShowRollup(isTagTable(event.type))
+        setShowRollup(isTagTable(event.type));
         // onRunQuery();
     };
     const onAggrFuncChange = (aAggr: { label: string, value: string }) => {
-        onChange({ ...query, aggrFunc: aAggr.value });
+        if (aAggr.value === 'none') {
+            // disable rollup checkbox
+            setDisableRollup(true);
+            onChange({ ...query, aggrFunc: aAggr.value, rollupTable: false });
+        } else {
+            setDisableRollup(false);
+            onChange({ ...query, aggrFunc: aAggr.value });
+        }
     };
 
     const getTables = async () => {
@@ -229,7 +237,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 valueField: numberColumn.value,
                 timeField: sameTable && query.timeField ? query.timeField : isDateType ? transData.filter((v: any) => v.type === 6)[0].value : null,
                 aggrFunc: sameTable && query.aggrFunc ? query.aggrFunc : 'avg',
-                rollupTable: isTagTable(type) ? true : false,
+                rollupTable: false,
                 title: query.title ?? '',
             })
             setColumnType(numberColumn.type)
@@ -250,9 +258,12 @@ export const QueryEditor: React.FC<Props> = (props) => {
 
     const toggleIsAggr = (aggr: boolean) => {
         if (aggr) {
-            onChange({ ...query, aggrFunc: '', valueType: 'input' });
+            onChange({ ...query, aggrFunc: 'none', valueType: 'input', rollupTable: false });
+            // disable rollup checkbox
+            setDisableRollup(true);
         } else {
-            onChange({ ...query, aggrFunc: '', valueType: 'select' });
+            onChange({ ...query, aggrFunc: 'avg', valueType: 'select' });
+            setDisableRollup(false);
         }
         setIsAggr(aggr)
     }
@@ -365,7 +376,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 <InlineLabel width={12}>
                     <span>Title</span>
                 </InlineLabel>
-                <div style={{width: 32.5 * 8, marginRight: 5}}>
+                <div style={{ width: 32.5 * 8, marginRight: 5 }}>
                     <Input width={32.5} value={title} onChange={onChangeTitle} />
                 </div>
             </div>
@@ -412,8 +423,13 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 <div style={{width: 40 * 8, marginRight: 5}}>
                     <Select width={40} value={timeField} options={columnNameList.filter((column: any) => column.type === 6)} onChange={(v: any) => onChangeTimeField(v)} />
                 </div>
-                <div style={{ display: showRollup ? '' : 'none'}}>
-                    <Checkbox value={rollupTable} label={'use rollup'} onChange={onChangeRollup} />
+                <div style={{
+                    display: showRollup ? 'flex' : 'none',
+                    color: disableRollup ? 'gray' : '',
+                    gap: '0.5rem',
+                }}>
+                    <input id="rollup" type='checkbox' checked={rollupTable} disabled={disableRollup} onChange={onChangeRollup} style={{cursor: disableRollup ? "not-allowed" : "pointer"}} />
+                    <label htmlFor="rollup" style={{cursor: disableRollup ? "not-allowed" : "pointer"}}>use rollup</label>
                 </div>
             </div>
 

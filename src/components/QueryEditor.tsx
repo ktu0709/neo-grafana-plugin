@@ -46,6 +46,8 @@ export const QueryEditor: React.FC<Props> = (props) => {
         { key: 'none', type: '', value: '', op: '=', condition: '', isStr: false }
     ])
 
+    const randomId = new Date().getTime() + '' + Math.random() * 100;
+
     useEffect(() => {
         getTables();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,7 +239,7 @@ export const QueryEditor: React.FC<Props> = (props) => {
                 valueField: numberColumn.value,
                 timeField: sameTable && query.timeField ? query.timeField : isDateType ? transData.filter((v: any) => v.type === 6)[0].value : null,
                 aggrFunc: sameTable && query.aggrFunc ? query.aggrFunc : 'avg',
-                rollupTable: false,
+                rollupTable: query.rollupTable ?? false,
                 title: query.title ?? '',
             })
             setColumnType(numberColumn.type)
@@ -428,8 +430,8 @@ export const QueryEditor: React.FC<Props> = (props) => {
                     color: disableRollup ? 'gray' : '',
                     gap: '0.5rem',
                 }}>
-                    <input id="rollup" type='checkbox' checked={rollupTable} disabled={disableRollup} onChange={onChangeRollup} style={{cursor: disableRollup ? "not-allowed" : "pointer"}} />
-                    <label htmlFor="rollup" style={{cursor: disableRollup ? "not-allowed" : "pointer"}}>use rollup</label>
+                    <input id={randomId} type='checkbox' checked={rollupTable} disabled={disableRollup} onChange={onChangeRollup} style={{cursor: disableRollup ? "not-allowed" : "pointer"}} />
+                    <label htmlFor={randomId} style={{cursor: disableRollup ? "not-allowed" : "pointer"}}>use rollup</label>
                 </div>
             </div>
 

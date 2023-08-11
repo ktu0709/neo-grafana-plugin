@@ -7,7 +7,7 @@
    Link: https://github.com/machbase/neo-grafana-plugin/releases/latest
 2. Extract the downloaded installation file into the Grafana installation folder's data/plugins directory.  
    If the data/plugins directory doesn't exist, create it.
-3. Add machbase-neo-datasource to the allow_loading_unsigned_plugins option in the Grafana installation folder's conf/default.ini file as follows:  
+3. Add machbase-neo-datasource to the `allow_loading_unsigned_plugins` option in the Grafana installation folder's conf/default.ini file as follows:  
    `allow_loading_unsigned_plugins = machbase-neo-datasource`
 4. Restart the Grafana Server.
 

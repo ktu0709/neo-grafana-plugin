@@ -19,8 +19,8 @@
 4. Enter the required information:
    - Name : Data source name
    - Address : Machbase-Neo connection address (Selectable between gRPC and rest API for use.)  
-     If using gRPC, enter as 'Machbase-Neo IP:gRPC Port' (e.g., 127.0.0.1:5654)  
-     If using rest API, enter as 'http://Machbase-Neo IP:Http Port' (e.g., http://127.0.0.1:5655)  
+     If using gRPC, enter as 'Machbase-Neo IP:gRPC Port' (e.g., 127.0.0.1:5655)  
+     If using rest API, enter as 'http://Machbase-Neo IP:Http Port' (e.g., http://127.0.0.1:5654)  
    - If not using rest API, authentication is required since TLS is used.
      - Client Cert. Path : Full path of the Client Certificate file
      - Client Key Path   : Full path of the Client Private Key file
